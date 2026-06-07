@@ -1,18 +1,15 @@
 package software.spool.runtime;
 
 import software.spool.core.adapter.logging.LoggerFactory;
-import software.spool.core.adapter.otel.OTELConfig;
 import software.spool.core.model.spool.SpoolNode;
 
 import java.io.IOException;
 import java.util.List;
 
 public class SpoolRuntime {
-    private final OpenTelemetryConfiguration openTelemetryConfiguration;
     private final List<SpoolNode> nodes;
 
-    public SpoolRuntime(OpenTelemetryConfiguration openTelemetryConfiguration, List<SpoolNode> nodes) {
-        this.openTelemetryConfiguration = openTelemetryConfiguration;
+    public SpoolRuntime(List<SpoolNode> nodes) {
         this.nodes = nodes;
     }
 
@@ -21,19 +18,11 @@ public class SpoolRuntime {
     }
 
     public void start() {
-        initializeOpenTelemetry();
         nodes.forEach(n -> {
             try { n.start();
             } catch (IOException e) {
                 LoggerFactory.getLogger(SpoolRuntime.class).error("Error starting SpoolRuntime: " + e.getMessage());
             }
         });
-    }
-
-    private void initializeOpenTelemetry() {
-        OTELConfig.init(openTelemetryConfiguration.serviceName(),
-                openTelemetryConfiguration.tracesEndpoint(),
-                openTelemetryConfiguration.logsEndpoint(),
-                openTelemetryConfiguration.metricsEndpoint());
     }
 }
