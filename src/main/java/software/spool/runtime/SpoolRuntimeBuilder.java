@@ -6,6 +6,7 @@ import software.spool.core.model.spool.SpoolNode;
 import software.spool.dsl.SpoolNodeDSL;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,8 +47,10 @@ public class SpoolRuntimeBuilder {
             try {
                 this.nodes.add(SpoolNodeDSL.fromDescriptor(p));
             } catch (IOException e) {
+                // A node that cannot be loaded stops the runtime: starting without it would hide the problem.
                 LoggerFactory.getLogger(SpoolRuntimeBuilder.class)
                         .error("Failed to load SpoolNode from DSL descriptor at path: " + p, e);
+                throw new UncheckedIOException(e.getMessage(), e);
             }
         });
         return new SpoolRuntime(List.copyOf(nodes));
