@@ -67,8 +67,8 @@ public class SpoolRuntimeBuilder {
 
     private void initializeOpenTelemetry() {
         OTELConfig.init(openTelemetryConfiguration.serviceName(),
-                openTelemetryConfiguration.tracesEndpoint(),
-                openTelemetryConfiguration.logsEndpoint(),
-                openTelemetryConfiguration.metricsEndpoint());
+                openTelemetryConfiguration.traces(),
+                openTelemetryConfiguration.logs(),
+                openTelemetryConfiguration.metrics());
     }
 }
