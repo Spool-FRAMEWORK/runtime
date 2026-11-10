@@ -3,6 +3,7 @@ package software.spool.runtime.e2e;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import software.spool.core.adapter.memory.InMemoryEventBus;
 import software.spool.core.model.Event;
 import software.spool.core.model.spool.SpoolNode;
 import software.spool.core.model.vo.Envelope;
@@ -13,7 +14,6 @@ import software.spool.crawler.api.Crawler;
 import software.spool.crawler.api.builder.StreamCrawlerBuilder;
 import software.spool.crawler.api.utils.CrawlerPorts;
 import software.spool.crawler.internal.utils.factory.Normalizer;
-import software.spool.infrastructure.adapter.bus.memory.InMemoryEventBus;
 import software.spool.infrastructure.adapter.pollsource.stream.InMemoryStreamSource;
 
 import java.io.IOException;
