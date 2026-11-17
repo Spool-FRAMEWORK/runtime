@@ -7,17 +7,18 @@ import software.spool.dsl.SpoolNodeDSL;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 public class SpoolRuntimeBuilder {
     private OpenTelemetryConfiguration openTelemetryConfiguration;
     private final List<SpoolNode> nodes;
-    private final List<String> dslPaths;
+    private final List<DescriptorNode> descriptorNodes;
 
     public SpoolRuntimeBuilder() {
         this.nodes = new ArrayList<>();
-        this.dslPaths = new ArrayList<>();
+        this.descriptorNodes = new ArrayList<>();
     }
 
     public SpoolRuntimeBuilder OpenTelemetryConfiguration(OpenTelemetryConfiguration openTelemetryConfiguration) {
@@ -26,8 +27,15 @@ public class SpoolRuntimeBuilder {
         return this;
     }
 
+    /** Adds the node of a descriptor in the classpath, named by its resource path, such as {@code /Spool.yaml}. */
     public SpoolRuntimeBuilder withNodeFromDSL(String path) {
-        this.dslPaths.add(path);
+        this.descriptorNodes.add(new DescriptorNode(path, () -> SpoolNodeDSL.fromDescriptor(path)));
+        return this;
+    }
+
+    /** Adds the node of a descriptor in the file system, so the same jar can run with different descriptors. */
+    public SpoolRuntimeBuilder withNodeFromDSL(Path file) {
+        this.descriptorNodes.add(new DescriptorNode(file.toString(), () -> SpoolNodeDSL.fromDescriptor(file)));
         return this;
     }
 
@@ -53,12 +61,12 @@ public class SpoolRuntimeBuilder {
      */
     public SpoolRuntime build() {
         initializeOpenTelemetry();
-        dslPaths.forEach(p -> {
+        descriptorNodes.forEach(descriptor -> {
             try {
-                this.nodes.add(SpoolNodeDSL.fromDescriptor(p));
+                this.nodes.add(descriptor.loader().load());
             } catch (IOException e) {
                 LoggerFactory.getLogger(SpoolRuntimeBuilder.class)
-                        .error("Failed to load SpoolNode from DSL descriptor at path: " + p, e);
+                        .error("Failed to load SpoolNode from DSL descriptor at path: " + descriptor.location(), e);
                 throw new UncheckedIOException(e.getMessage(), e);
             }
         });
@@ -70,5 +78,12 @@ public class SpoolRuntimeBuilder {
                 openTelemetryConfiguration.traces(),
                 openTelemetryConfiguration.logs(),
                 openTelemetryConfiguration.metrics());
+    }
+
+    private record DescriptorNode(String location, NodeLoader loader) {}
+
+    @FunctionalInterface
+    private interface NodeLoader {
+        SpoolNode load() throws IOException;
     }
 }

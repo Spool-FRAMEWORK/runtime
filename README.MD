@@ -101,6 +101,17 @@ SpoolRuntime.builder()
         .start();
 ```
 
+The descriptor can be read from two places, and the type of the argument says which:
+
+| Call | Reads the descriptor from | Use it when |
+|---|---|---|
+| `withNodeFromDSL("/Spool.yaml")` | the classpath, by its resource path | the descriptor ships inside the jar |
+| `withNodeFromDSL(Path.of("/etc/spool/Spool.yaml"))` | the file system, by its path | the same jar runs with different descriptors |
+
+A path that does not exist stops the build with `Descriptor not found in the file system: <path>`. Files named in
+`include:` are read next to the descriptor, from the same place. The profile comes from `SPOOL_PROFILE`, as
+described in the DSL README.
+
 ---
 
 ### Boot from code
