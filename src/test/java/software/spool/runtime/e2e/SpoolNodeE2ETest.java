@@ -13,7 +13,7 @@ import software.spool.core.port.watchdog.ModuleHeartBeat;
 import software.spool.crawler.api.Crawler;
 import software.spool.crawler.api.builder.StreamCrawlerBuilder;
 import software.spool.crawler.api.utils.CrawlerPorts;
-import software.spool.crawler.internal.utils.factory.Normalizer;
+import software.spool.crawler.api.normalizer.Normalizer;
 import software.spool.infrastructure.adapter.pollsource.stream.InMemoryStreamSource;
 
 import java.io.IOException;
