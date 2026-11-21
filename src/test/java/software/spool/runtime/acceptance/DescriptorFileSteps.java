@@ -28,6 +28,7 @@ public class DescriptorFileSteps {
     private static final String VALID_DESCRIPTOR = """
             infrastructure:
               eventBus:
+                kind: EVENT_BUS
                 type: IN_MEMORY
 
             modules: []
@@ -36,8 +37,10 @@ public class DescriptorFileSteps {
     private static final String CRAWLER_WITHOUT_SOURCE = """
             infrastructure:
               eventBus:
+                kind: EVENT_BUS
                 type: IN_MEMORY
               inbox:
+                kind: INBOX
                 type: IN_MEMORY
 
             modules:
