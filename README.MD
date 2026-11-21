@@ -107,8 +107,13 @@ The descriptor can be read from two places, and the type of the argument says wh
 |---|---|---|
 | `withNodeFromDSL("/Spool.yaml")` | the classpath, by its resource path | the descriptor ships inside the jar |
 | `withNodeFromDSL(Path.of("/etc/spool/Spool.yaml"))` | the file system, by its path | the same jar runs with different descriptors |
+| `withNodesFromDSL(Path.of("/etc/spool/pipelines"))` | every `.spool.yaml` of a folder of the file system and its subfolders, one node each | several pipelines run in one process |
+| `withNodesFromDSL("/pipelines")` | the same, from a folder of the classpath, also inside the jar | the pipelines ship inside the jar |
 
-A path that does not exist stops the build with `Descriptor not found in the file system: <path>`. Files named in
+A path that does not exist stops the build with `Descriptor not found in the file system: <path>`. Each node opens
+its HTTP server on the `server.port` of its descriptor, 8080 by default, and two descriptors of the runtime on the
+same port stop the build naming both, whether they come from a folder or on their own. The log says the file and the
+port of each node. Files named in
 `include:` are read next to the descriptor, from the same place. The profile comes from `SPOOL_PROFILE`, as
 described in the DSL README.
 

@@ -13,6 +13,10 @@ public class SpoolRuntime {
         this.nodes = nodes;
     }
 
+    public List<SpoolNode> nodes() {
+        return nodes;
+    }
+
     public static SpoolRuntimeBuilder builder() {
         return new SpoolRuntimeBuilder();
     }

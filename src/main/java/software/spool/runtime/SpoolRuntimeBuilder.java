@@ -3,22 +3,31 @@ package software.spool.runtime;
 import software.spool.core.adapter.logging.LoggerFactory;
 import software.spool.core.adapter.otel.OTELConfig;
 import software.spool.core.model.spool.SpoolNode;
+import software.spool.core.port.logging.Logger;
+import software.spool.dsl.DescriptorFolder;
+import software.spool.dsl.DescriptorLoader;
+import software.spool.dsl.DistinctPorts;
+import software.spool.dsl.NamedDescriptor;
 import software.spool.dsl.SpoolNodeDSL;
+import software.spool.dsl.source.FileSystemDescriptorSource;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 public class SpoolRuntimeBuilder {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SpoolRuntimeBuilder.class);
+
     private OpenTelemetryConfiguration openTelemetryConfiguration;
     private final List<SpoolNode> nodes;
-    private final List<DescriptorNode> descriptorNodes;
+    private final List<DescriptorEntry> descriptors;
 
     public SpoolRuntimeBuilder() {
         this.nodes = new ArrayList<>();
-        this.descriptorNodes = new ArrayList<>();
+        this.descriptors = new ArrayList<>();
     }
 
     public SpoolRuntimeBuilder OpenTelemetryConfiguration(OpenTelemetryConfiguration openTelemetryConfiguration) {
@@ -29,13 +38,27 @@ public class SpoolRuntimeBuilder {
 
     /** Adds the node of a descriptor in the classpath, named by its resource path, such as {@code /Spool.yaml}. */
     public SpoolRuntimeBuilder withNodeFromDSL(String path) {
-        this.descriptorNodes.add(new DescriptorNode(path, () -> SpoolNodeDSL.fromDescriptor(path)));
+        this.descriptors.add(new DescriptorEntry(path, () -> single(path, DescriptorLoader.fromClasspath())));
         return this;
     }
 
     /** Adds the node of a descriptor in the file system, so the same jar can run with different descriptors. */
     public SpoolRuntimeBuilder withNodeFromDSL(Path file) {
-        this.descriptorNodes.add(new DescriptorNode(file.toString(), () -> SpoolNodeDSL.fromDescriptor(file)));
+        String location = FileSystemDescriptorSource.locationOf(file);
+        this.descriptors.add(new DescriptorEntry(location, () -> single(location, DescriptorLoader.fromFileSystem())));
+        return this;
+    }
+
+    /** Adds a node for every {@code .spool.yaml} of a folder of the file system and its subfolders. */
+    public SpoolRuntimeBuilder withNodesFromDSL(Path folder) {
+        String location = FileSystemDescriptorSource.locationOf(folder);
+        this.descriptors.add(new DescriptorEntry(location, () -> ofFolder(location, DescriptorFolder.fromFileSystem())));
+        return this;
+    }
+
+    /** Adds a node for every {@code .spool.yaml} of a folder of the classpath, such as {@code /pipelines}, also in a jar. */
+    public SpoolRuntimeBuilder withNodesFromDSL(String folder) {
+        this.descriptors.add(new DescriptorEntry(folder, () -> ofFolder(folder, DescriptorFolder.fromClasspath())));
         return this;
     }
 
@@ -53,22 +76,22 @@ public class SpoolRuntimeBuilder {
      * Builds the runtime with the nodes added so far and the ones loaded from the DSL descriptors.
      *
      * <p>A descriptor that cannot be loaded stops the build, because starting without its node would hide the
-     * problem. The failure is logged first: logs go through OpenTelemetry, and an uncaught exception would
-     * only reach stderr.</p>
+     * problem, and so do two descriptors on the same port, wherever each comes from. The failure is logged first:
+     * logs go through OpenTelemetry, and an uncaught exception would only reach stderr.</p>
      *
      * @return the runtime
      * @throws UncheckedIOException with the message of the cause when a descriptor cannot be loaded
      */
     public SpoolRuntime build() {
         initializeOpenTelemetry();
-        descriptorNodes.forEach(descriptor -> {
-            try {
-                this.nodes.add(descriptor.loader().load());
-            } catch (IOException e) {
-                LoggerFactory.getLogger(SpoolRuntimeBuilder.class)
-                        .error("Failed to load SpoolNode from DSL descriptor at path: " + descriptor.location(), e);
-                throw new UncheckedIOException(e.getMessage(), e);
-            }
+        List<NamedDescriptor> loaded = new ArrayList<>();
+        for (DescriptorEntry descriptor : descriptors) {
+            loaded.addAll(loadedOrFail(descriptor.location(), descriptor.loader()));
+        }
+        checkPorts(loaded);
+        loaded.forEach(named -> {
+            LOGGER.info("Node from {} on port {}", named.name(), named.descriptor().server().port());
+            nodes.add(SpoolNodeDSL.fromDescriptor(named.descriptor()));
         });
         return new SpoolRuntime(List.copyOf(nodes));
     }
@@ -80,10 +103,36 @@ public class SpoolRuntimeBuilder {
                 openTelemetryConfiguration.metrics());
     }
 
-    private record DescriptorNode(String location, NodeLoader loader) {}
+    private static List<NamedDescriptor> loadedOrFail(String location, DescriptorsLoader loader) {
+        try {
+            return loader.load();
+        } catch (IOException e) {
+            LOGGER.error("Failed to load SpoolNode from DSL descriptor at path: " + location, e);
+            throw new UncheckedIOException(e.getMessage(), e);
+        }
+    }
+
+    private static void checkPorts(List<NamedDescriptor> loaded) {
+        try {
+            DistinctPorts.check(loaded);
+        } catch (IOException e) {
+            LOGGER.error("Two DSL descriptors of the runtime open the same port", e);
+            throw new UncheckedIOException(e.getMessage(), e);
+        }
+    }
+
+    private static List<NamedDescriptor> single(String location, DescriptorLoader loader) throws IOException {
+        return List.of(new NamedDescriptor(location, loader.load(location, loader.profileOfTheEnvironment(), Function.identity())));
+    }
+
+    private static List<NamedDescriptor> ofFolder(String folder, DescriptorFolder descriptors) throws IOException {
+        return descriptors.load(folder, descriptors.profileOfTheEnvironment());
+    }
+
+    private record DescriptorEntry(String location, DescriptorsLoader loader) {}
 
     @FunctionalInterface
-    private interface NodeLoader {
-        SpoolNode load() throws IOException;
+    private interface DescriptorsLoader {
+        List<NamedDescriptor> load() throws IOException;
     }
 }
