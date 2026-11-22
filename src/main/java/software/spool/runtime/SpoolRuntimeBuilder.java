@@ -10,13 +10,17 @@ import software.spool.dsl.DistinctPorts;
 import software.spool.dsl.NamedDescriptor;
 import software.spool.dsl.SpoolNodeDSL;
 import software.spool.dsl.source.FileSystemDescriptorSource;
+import software.spool.runtime.cluster.ClusterMembership;
+import software.spool.runtime.cluster.ClusterNode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 public class SpoolRuntimeBuilder {
     private static final Logger LOGGER = LoggerFactory.getLogger(SpoolRuntimeBuilder.class);
@@ -24,6 +28,7 @@ public class SpoolRuntimeBuilder {
     private OpenTelemetryConfiguration openTelemetryConfiguration;
     private final List<SpoolNode> nodes;
     private final List<DescriptorEntry> descriptors;
+    private UnaryOperator<String> environment = System::getenv;
 
     public SpoolRuntimeBuilder() {
         this.nodes = new ArrayList<>();
@@ -62,6 +67,12 @@ public class SpoolRuntimeBuilder {
         return this;
     }
 
+    /** Where the cluster variables of {@link ClusterMembership} are read; the environment of the process by default. */
+    public SpoolRuntimeBuilder withEnvironment(UnaryOperator<String> environment) {
+        this.environment = environment;
+        return this;
+    }
+
     public SpoolRuntimeBuilder withNode(SpoolNode node) {
         nodes.add(node);
         return this;
@@ -84,6 +95,8 @@ public class SpoolRuntimeBuilder {
      */
     public SpoolRuntime build() {
         initializeOpenTelemetry();
+        Optional<ClusterMembership> membership = ClusterMembership.fromTheEnvironment(environment);
+        if (membership.isPresent()) return clusterRuntime(membership.get());
         List<NamedDescriptor> loaded = new ArrayList<>();
         for (DescriptorEntry descriptor : descriptors) {
             loaded.addAll(loadedOrFail(descriptor.location(), descriptor.loader()));
@@ -94,6 +107,12 @@ public class SpoolRuntimeBuilder {
             nodes.add(SpoolNodeDSL.fromDescriptor(named.descriptor()));
         });
         return new SpoolRuntime(List.copyOf(nodes));
+    }
+
+    private SpoolRuntime clusterRuntime(ClusterMembership membership) {
+        LOGGER.info("Node {} joins the cluster of the Spool API at {}; its descriptors are not loaded, the API assigns its modules",
+                membership.nodeId(), membership.api());
+        return new SpoolRuntime(List.of(ClusterNode.of(membership)), Optional.of(ClusterNode.heartbeatOf(membership)));
     }
 
     private void initializeOpenTelemetry() {

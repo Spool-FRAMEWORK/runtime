@@ -1,0 +1,4 @@
+server: {port: 18081}
+infrastructure:
+  bus: {kind: EVENT_BUS, type: IN_MEMORY}
+modules: []
