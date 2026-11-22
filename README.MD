@@ -179,6 +179,26 @@ The `.docker` folder in this module contains a ready-to-run `docker-compose.yml`
 
 ---
 
+## Cluster mode
+
+With these variables in the environment, `build()` gives a runtime with one node and no module, which joins the
+[Spool API](https://github.com/Spool-FRAMEWORK/api) instead of loading its descriptors (ADR-022):
+
+| Variable | Value |
+|---|---|
+| `SPOOL_CLUSTER_API` | Where the API is, such as `http://spool-api:8090` |
+| `SPOOL_NODE_ID` | The id of the node in the cluster |
+| `SPOOL_NODE_ADDRESS` | Where the node answers; its HTTP server listens on the port of this address |
+| `SPOOL_CLUSTER_SECRET` | The secret the node signs its requests with |
+| `SPOOL_CLUSTER_HEARTBEAT` | How often it says it is alive, `10s` by default |
+
+When the node starts it registers in the API and then sends a heartbeat every interval, signed with the headers
+`X-Spool-Signature` and `X-Spool-Timestamp`. A heartbeat that fails is logged and the next one is tried. With only
+some of the four required variables, `build()` fails naming the missing ones; with none, the runtime starts from its
+descriptors as always. `withEnvironment` reads them from somewhere other than the environment of the process.
+
+---
+
 ## License
 
 Distributed under the [GNU Affero General Public License v3.0](LICENSE).
