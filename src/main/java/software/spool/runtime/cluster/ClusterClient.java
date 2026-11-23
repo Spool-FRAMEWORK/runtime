@@ -1,5 +1,6 @@
 package software.spool.runtime.cluster;
 
+import software.spool.core.adapter.jackson.PayloadDeserializerFactory;
 import software.spool.core.adapter.jackson.RecordSerializerFactory;
 import software.spool.infrastructure.adapter.authentication.hmac.HmacSigner;
 
@@ -8,7 +9,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -38,10 +42,40 @@ public final class ClusterClient {
         send("PUT", NODES + "/" + membership.nodeId() + "/heartbeat", new byte[0], 204);
     }
 
+    /** The deployments the API assigns to the node, and its lease. */
+    public Assignments assignments() {
+        String body = send("GET", assignmentsPath(), new byte[0], 200);
+        AssignmentsPayload payload = PayloadDeserializerFactory.json().as(AssignmentsPayload.class)
+                .deserialize(body.getBytes(StandardCharsets.UTF_8));
+        return new Assignments(Duration.ofSeconds(payload.leaseSeconds()), payload.deployments());
+    }
+
+    public void reportRunning(String deployment, int version) {
+        report(deployment, new Report(version, "RUNNING", null));
+    }
+
+    public void reportFailed(String deployment, int version, String error) {
+        report(deployment, new Report(version, "FAILED", error));
+    }
+
+    private void report(String deployment, Report report) {
+        send("PUT", assignmentsPath() + "/" + deployment, RecordSerializerFactory.<Report>record().serialize(report), 204);
+    }
+
+    private String assignmentsPath() {
+        return NODES + "/" + membership.nodeId() + "/assignments";
+    }
+
     private record Registration(String id, String address) {
     }
 
-    private void send(String method, String path, byte[] body, int expected) {
+    private record AssignmentsPayload(long leaseSeconds, List<Assignment> deployments) {
+    }
+
+    private record Report(int version, String state, String error) {
+    }
+
+    private String send(String method, String path, byte[] body, int expected) {
         HttpRequest.Builder request = HttpRequest.newBuilder(membership.api().resolve(URI.create(path)))
                 .method(method, body.length == 0 ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(body))
                 .header("Content-Type", "application/json");
@@ -49,6 +83,7 @@ public final class ClusterClient {
         HttpResponse<String> response = sendOrFail(request.build());
         if (response.statusCode() != expected)
             throw new ClusterException(method + " " + path + " to the Spool API answered " + response.statusCode() + ": " + response.body());
+        return response.body();
     }
 
     private HttpResponse<String> sendOrFail(HttpRequest request) {
