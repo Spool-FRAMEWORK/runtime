@@ -193,7 +193,14 @@ With these variables in the environment, `build()` gives a runtime with one node
 | `SPOOL_CLUSTER_HEARTBEAT` | How often it says it is alive, `10s` by default |
 
 When the node starts it registers in the API and then sends a heartbeat every interval, signed with the headers
-`X-Spool-Signature` and `X-Spool-Timestamp`. A heartbeat that fails is logged and the next one is tried. With only
+`X-Spool-Signature` and `X-Spool-Timestamp`. A heartbeat that fails is logged and the next one is tried.
+
+With each heartbeat it also asks the API for its assignments (ADR-031): it starts the deployments it lacks, stops the
+ones it has of more and restarts the ones that changed version, building each from its descriptor with the plugins
+and classes of its own classpath and the `${env:NAME}` of its own environment. Then it tells the API whether each one
+runs or failed to start, with the error; one that failed is not tried again until its version changes. When the lease
+the API gives it passes without an accepted heartbeat, the node stops every deployment, so the same one does not run
+on two nodes when the API moves it. With only
 some of the four required variables, `build()` fails naming the missing ones; with none, the runtime starts from its
 descriptors as always. `withEnvironment` reads them from somewhere other than the environment of the process.
 
