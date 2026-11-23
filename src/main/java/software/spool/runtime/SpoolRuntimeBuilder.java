@@ -112,7 +112,8 @@ public class SpoolRuntimeBuilder {
     private SpoolRuntime clusterRuntime(ClusterMembership membership) {
         LOGGER.info("Node {} joins the cluster of the Spool API at {}; its descriptors are not loaded, the API assigns its modules",
                 membership.nodeId(), membership.api());
-        return new SpoolRuntime(List.of(ClusterNode.of(membership)), Optional.of(ClusterNode.heartbeatOf(membership)));
+        SpoolNode node = ClusterNode.of(membership);
+        return new SpoolRuntime(List.of(node), Optional.of(ClusterNode.heartbeatOf(membership, node, environment)));
     }
 
     private void initializeOpenTelemetry() {

@@ -14,11 +14,13 @@ public final class ClusterHeartbeat {
     private static final Logger LOG = LoggerFactory.getLogger(ClusterHeartbeat.class);
 
     private final ClusterClient client;
+    private final AssignmentReconciler reconciler;
     private final PollingConfiguration polling;
     private CancellationToken token = CancellationToken.NOOP;
 
-    public ClusterHeartbeat(ClusterClient client, ClusterMembership membership) {
+    public ClusterHeartbeat(ClusterClient client, AssignmentReconciler reconciler, ClusterMembership membership) {
         this.client = client;
+        this.reconciler = reconciler;
         this.polling = PollingConfiguration.of(Schedule.every(membership.heartbeatInterval()));
     }
 
@@ -30,13 +32,17 @@ public final class ClusterHeartbeat {
 
     public void stop() {
         token.cancel();
+        reconciler.stopAll();
     }
 
+    /** Says the node is alive and runs what the API assigns; when the API does not answer, checks the lease. */
     private void beat() {
         try {
             client.beat();
+            reconciler.reconcile(client.assignments());
         } catch (ClusterException e) {
             LOG.warn("Heartbeat to the Spool API failed; trying again in the next one: {}", e.getMessage());
+            reconciler.checkLease();
         }
     }
 }
