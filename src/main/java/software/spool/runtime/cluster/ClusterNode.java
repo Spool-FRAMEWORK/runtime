@@ -5,7 +5,7 @@ import software.spool.core.model.spool.SpoolModule;
 import software.spool.core.model.spool.SpoolNode;
 import software.spool.dsl.DescriptorLoader;
 import software.spool.dsl.DescriptorModules;
-import software.spool.dsl.source.TextDescriptorSource;
+import software.spool.dsl.source.InMemoryDescriptorSource;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,14 +36,15 @@ public final class ClusterNode {
                                                UnaryOperator<String> environment) {
         ClusterClient client = new ClusterClient(membership, Clock.systemUTC());
         AssignmentReconciler reconciler = new AssignmentReconciler(node, client,
-                descriptor -> modulesOf(descriptor, environment), Clock.systemUTC());
+                assignment -> modulesOf(assignment, environment), Clock.systemUTC());
         return new ClusterHeartbeat(client, reconciler, membership);
     }
 
-    private static List<SpoolModule> modulesOf(String descriptor, UnaryOperator<String> environment) {
+    /** The modules of an assignment, loaded from its files with their includes, as from a folder. */
+    private static List<SpoolModule> modulesOf(Assignment assignment, UnaryOperator<String> environment) {
         try {
-            return new DescriptorLoader(new TextDescriptorSource(descriptor), environment)
-                    .load(TextDescriptorSource.LOCATION, Optional.empty(), DescriptorModules::of);
+            return new DescriptorLoader(new InMemoryDescriptorSource(assignment.files()), environment)
+                    .load(assignment.main(), Optional.empty(), DescriptorModules::of);
         } catch (IOException e) {
             throw new UncheckedIOException(e.getMessage(), e);
         }

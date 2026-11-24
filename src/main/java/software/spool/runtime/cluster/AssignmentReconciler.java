@@ -26,13 +26,13 @@ public final class AssignmentReconciler {
 
     private final SpoolNode node;
     private final ClusterClient client;
-    private final Function<String, List<SpoolModule>> modulesOf;
+    private final Function<Assignment, List<SpoolModule>> modulesOf;
     private final Clock clock;
     private final Map<String, Integer> running = new HashMap<>();
     private final Map<String, Integer> failed = new HashMap<>();
     private Optional<Instant> leaseEnd = Optional.empty();
 
-    public AssignmentReconciler(SpoolNode node, ClusterClient client, Function<String, List<SpoolModule>> modulesOf,
+    public AssignmentReconciler(SpoolNode node, ClusterClient client, Function<Assignment, List<SpoolModule>> modulesOf,
                                 Clock clock) {
         this.node = node;
         this.client = client;
@@ -68,7 +68,7 @@ public final class AssignmentReconciler {
 
     private void start(Assignment assignment) {
         try {
-            node.add(assignment.name(), modulesOf.apply(assignment.descriptor()));
+            node.add(assignment.name(), modulesOf.apply(assignment));
             running.put(assignment.name(), assignment.version());
             LOG.info("Deployment {} in its version {} runs", assignment.name(), assignment.version());
             tell(() -> client.reportRunning(assignment.name(), assignment.version()));

@@ -58,6 +58,17 @@ public class AssignmentSteps {
         assign(nodeId, deployment, version, "FILE_SYSTEM", module);
     }
 
+    @Given("the API assigns to {string} the deployment {string} whose main file includes its infrastructure from {string}")
+    public void theApiAssignsAPipelineOfSeveralFiles(String nodeId, String deployment, String included) throws IOException {
+        String complete = descriptor(deployment, "FILE_SYSTEM", deployment + "-ingester");
+        int modules = complete.indexOf("modules:");
+        String main = deployment + ".spool.yaml";
+        assigned.put(deployment, new Assigned(deployment, 1, main, Map.of(
+                main, "include: [" + included + "]\n" + complete.substring(modules),
+                included, complete.substring(0, modules))));
+        publish(nodeId);
+    }
+
     @When("the API assigns nothing to {string}")
     public void theApiAssignsNothing(String nodeId) throws IOException {
         assigned.clear();
@@ -114,7 +125,8 @@ public class AssignmentSteps {
     }
 
     private void assign(String nodeId, String deployment, int version, String inboxType, String module) throws IOException {
-        assigned.put(deployment, new Assigned(deployment, version, descriptor(deployment, inboxType, module)));
+        String main = deployment + ".spool.yaml";
+        assigned.put(deployment, new Assigned(deployment, version, main, Map.of(main, descriptor(deployment, inboxType, module))));
         publish(nodeId);
     }
 
@@ -167,6 +179,6 @@ public class AssignmentSteps {
         return path.toString().replace('\\', '/');
     }
 
-    private record Assigned(String name, int version, String descriptor) {
+    private record Assigned(String name, int version, String main, Map<String, String> files) {
     }
 }
