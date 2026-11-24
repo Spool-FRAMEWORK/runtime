@@ -191,6 +191,7 @@ With these variables in the environment, `build()` gives a runtime with one node
 | `SPOOL_NODE_ADDRESS` | Where the node answers; its HTTP server listens on the port of this address |
 | `SPOOL_CLUSTER_SECRET` | The secret the node signs its requests with |
 | `SPOOL_CLUSTER_HEARTBEAT` | How often it says it is alive, `10s` by default |
+| `SPOOL_NODE_LABELS` | Optional. The labels of the node, written as `key=value` and separated by commas, such as `cloud=aws,region=eu-west-1`; it gets only deployments that ask for labels it has (ADR-036). A label not written as `key=value` stops the start |
 
 When the node starts it registers in the API and then sends a heartbeat every interval, signed with the headers
 `X-Spool-Signature` and `X-Spool-Timestamp`. A heartbeat that fails is logged and the next one is tried.
