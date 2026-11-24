@@ -34,7 +34,8 @@ public final class ClusterClient {
     }
 
     public void register() {
-        Registration registration = new Registration(membership.nodeId(), membership.address().toString());
+        Registration registration = new Registration(membership.nodeId(), membership.address().toString(),
+                membership.labels().asList());
         send("POST", NODES, RecordSerializerFactory.<Registration>record().serialize(registration), 201);
     }
 
@@ -66,7 +67,7 @@ public final class ClusterClient {
         return NODES + "/" + membership.nodeId() + "/assignments";
     }
 
-    private record Registration(String id, String address) {
+    private record Registration(String id, String address, List<String> labels) {
     }
 
     private record AssignmentsPayload(long leaseSeconds, List<Assignment> deployments) {

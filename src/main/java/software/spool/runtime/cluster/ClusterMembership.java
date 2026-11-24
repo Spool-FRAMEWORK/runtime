@@ -1,5 +1,6 @@
 package software.spool.runtime.cluster;
 
+import software.spool.core.model.spool.NodeLabels;
 import software.spool.dsl.reader.ValueParsers;
 
 import java.net.URI;
@@ -10,15 +11,18 @@ import java.util.function.UnaryOperator;
 
 /**
  * How a node takes part in a cluster of the Spool API (ADR-022): where the API is, the id and address of the node, the
- * secret it signs with and how often it says it is alive. Read from the environment: with none of the variables the
- * node is not in a cluster, and with only some of them it cannot start.
+ * secret it signs with, how often it says it is alive, and its labels (ADR-036). Read from the environment: with none of
+ * the required variables the node is not in a cluster, and with only some of them it cannot start. Without
+ * SPOOL_NODE_LABELS the node has no labels.
  */
-public record ClusterMembership(URI api, String nodeId, URI address, String secret, Duration heartbeatInterval) {
+public record ClusterMembership(URI api, String nodeId, URI address, String secret, Duration heartbeatInterval,
+                                NodeLabels labels) {
     public static final String API = "SPOOL_CLUSTER_API";
     public static final String NODE_ID = "SPOOL_NODE_ID";
     public static final String NODE_ADDRESS = "SPOOL_NODE_ADDRESS";
     public static final String SECRET = "SPOOL_CLUSTER_SECRET";
     public static final String HEARTBEAT = "SPOOL_CLUSTER_HEARTBEAT";
+    public static final String LABELS = "SPOOL_NODE_LABELS";
     private static final List<String> REQUIRED = List.of(API, NODE_ID, NODE_ADDRESS, SECRET);
     private static final Duration DEFAULT_HEARTBEAT = Duration.ofSeconds(10);
 
@@ -29,7 +33,16 @@ public record ClusterMembership(URI api, String nodeId, URI address, String secr
                 + " too: set every one of " + String.join(", ", REQUIRED) + ", or none to start from a descriptor");
         return Optional.of(new ClusterMembership(URI.create(environment.apply(API)), environment.apply(NODE_ID),
                 URI.create(environment.apply(NODE_ADDRESS)), environment.apply(SECRET),
-                heartbeatOf(environment)));
+                heartbeatOf(environment), labelsOf(environment)));
+    }
+
+    private static NodeLabels labelsOf(UnaryOperator<String> environment) {
+        try {
+            return valueOf(environment, LABELS).map(NodeLabels::parse).orElse(NodeLabels.none());
+        } catch (IllegalArgumentException badLabel) {
+            throw new IllegalStateException(LABELS + " must be labels written as key=value and separated by commas: "
+                    + badLabel.getMessage(), badLabel);
+        }
     }
 
     private static Duration heartbeatOf(UnaryOperator<String> environment) {

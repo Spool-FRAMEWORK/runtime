@@ -1,5 +1,7 @@
 package software.spool.runtime.acceptance;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
@@ -9,10 +11,13 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ClusterSteps {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private final ClusterNodeUnderTest node;
 
     public ClusterSteps(ClusterNodeUnderTest node) {
@@ -37,6 +42,21 @@ public class ClusterSteps {
     public void theClusterVariablesButTheSecret(String nodeId, String address) throws IOException {
         theClusterVariables(nodeId, address);
         node.environment.remove(ClusterMembership.SECRET);
+    }
+
+    @Given("the environment has SPOOL_NODE_LABELS set to {string}")
+    public void theNodeLabels(String labels) {
+        node.environment.put(ClusterMembership.LABELS, labels);
+    }
+
+    @Then("the API received the registration of {string} with the labels {string}")
+    public void theApiReceivedTheRegistrationWithTheLabels(String nodeId, String labels) throws IOException {
+        assertThat(labelsOfTheRegistrationOf(nodeId)).containsExactly(labels.split(","));
+    }
+
+    @Then("the API received the registration of {string} with no labels")
+    public void theApiReceivedTheRegistrationWithNoLabels(String nodeId) throws IOException {
+        assertThat(labelsOfTheRegistrationOf(nodeId)).isEmpty();
     }
 
     @Given("the environment has no cluster variables")
@@ -93,6 +113,16 @@ public class ClusterSteps {
     @Then("the start fails with an error that says {string}")
     public void theStartFails(String text) {
         assertThat(node.failure).hasValueSatisfying(error -> assertThat(error).hasMessageContaining(text));
+    }
+
+    private List<String> labelsOfTheRegistrationOf(String nodeId) throws IOException {
+        assertThat(node.failure).isEmpty();
+        RecordingSpoolApi.Received registration = node.api.orElseThrow().received().stream()
+                .filter(request -> request.method().equals("POST") && request.path().equals("/spool/cluster/nodes"))
+                .filter(request -> request.body().contains("\"id\":\"" + nodeId + "\""))
+                .findFirst().orElseThrow();
+        JsonNode labels = JSON.readTree(registration.body()).path("labels");
+        return StreamSupport.stream(labels.spliterator(), false).map(JsonNode::asText).toList();
     }
 
     private long heartbeatsOf(String nodeId) {
